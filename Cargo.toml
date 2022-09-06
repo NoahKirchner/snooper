@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 headless_chrome = {git = "https://github.com/atroche/rust-headless-chrome", features = ["fetch"]}
 regex = "1"
+yaml-rust = "0.4"
