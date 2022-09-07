@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::format;
 use std::collections::HashMap;
 use std::fs::read_to_string;
-use yaml_rust::{YamlLoader, YamlEmitter};
+use yaml_rust::{YamlLoader};
 
 use std::error::Error;
 
@@ -31,6 +31,7 @@ pub fn visit_page(browser:&Browser, url:&str) -> Result<Arc<Tab>, Box<dyn Error>
 }
 
 /*== Data Deserialization ==*/
+#[derive(Debug)]
 pub struct PageInfo{
     pub site_name:String, // Name of the site to be checked.
     pub url:String, // Format like "https://www.youtube.com/user/{}/"
@@ -60,26 +61,54 @@ impl PageInfo {
     }
 }
 
- 
-pub fn targets_from_yaml(filename:String){
+ // @ TODO refactor this abomination
+pub fn targets_from_yaml(filename:String) -> Result<HashMap<String,PageInfo>, Box<dyn Error>>{
+    // Converts yaml file to a string.
     let raw = read_to_string(&filename.as_str()).ok()
         .expect(format!("Error opening yaml file. Filename: {}", &filename).as_str());
 
+    // Creates a vector of Yaml objects where the size of the vector is equal to
+    // the number of yaml documents (denoted in yaml with ----)
     let yaml = YamlLoader::load_from_str(&raw).ok()
         .expect("Error loading yaml from string.");
 
-    let doc = &yaml[0];
-    println!("{:?}", doc.into_string());
+    // Takes the yaml file's 0th document and converts it to a hashmap.
+    let doc = &yaml[0].as_hash().unwrap();
 
-    for item in doc.as_vec(){
-        println!("{:?}", item[0]);
+    let mut targets:HashMap<String, PageInfo> = HashMap::new();
+
+    for (k,v) in doc.iter(){
+        //println!("{:?}\n", (k, v));
+        let target_name = k.as_str().unwrap().to_string();
+        
+        let mut title_match:Vec<String> = Vec::new();
+
+        // This is violently ugly, but it had to be done. Lord help me.
+        // For future me, this converts the vector of yaml vectors
+        // into one yaml vector, converts the types of its contents to
+        // string and appends those to a new vector.
+        // @ TODO Refactor this godforsaken nonsense
+        for title_vector in v["title_match"].as_vec(){
+            for title in title_vector {
+                title_match.push(title.as_str().unwrap().to_string())
+            }
+        }
+
+        // Matches up the pageinfo constructor arguments with the
+        // parsed yaml. This is buttfuckingly terrible.
+        // @ TODO refactor.
+        let target_values = PageInfo::new(
+            v["site_name"].as_str().unwrap().to_string(),
+            v["url"].as_str().unwrap().to_string(),
+            v["bio_url"].as_str().unwrap().to_string(),
+            title_match,
+            v["title_trim"].as_str().unwrap().to_string(),
+            v["xpath"].as_str().unwrap().to_string(),
+        );
+
+        targets.insert(target_name,target_values);
     }
-    /* 
-    {
-        let mut emitter = YamlEmitter::new(&mut out_str);
-        println!("{:?}",emitter.dump(&yaml[0]).unwrap());
-    }
-    */
+    Ok(targets)
 
 }
 
@@ -100,15 +129,15 @@ pub enum WebReturn {
 to parse the page. Perhaps try using a regex for page parsing or changing the
 logic?
 */
-pub fn parse_page(browser: &Browser, username:&String, pageinfo:PageInfo) -> Result<WebReturn,Box<dyn Error>>{
+pub fn parse_page(browser: &Browser, username:&String, pageinfo:&PageInfo) -> Result<WebReturn,Box<dyn Error>>{
     let mut fail_switch:bool = false;
     
-    let url = pageinfo.url.replace("{}", username);
-    let bio_url = pageinfo.bio_url.replace("{}", username);
-    let site_name = pageinfo.site_name;
-    let title_match = pageinfo.title_match; // FACEBOOK HAS A PAGE THAT NEEDS DIRECT MATCH
-    let title_trim = pageinfo.title_trim;
-    let xpath = pageinfo.xpath;
+    let url = &pageinfo.url.replace("{}", username);
+    let bio_url = &pageinfo.bio_url.replace("{}", username);
+    let site_name = &pageinfo.site_name;
+    let title_match = &pageinfo.title_match; // FACEBOOK HAS A PAGE THAT NEEDS DIRECT MATCH
+    let title_trim = &pageinfo.title_trim;
+    let xpath = &pageinfo.xpath;
 
 
     let tab = visit_page(browser, &url).ok()
@@ -117,7 +146,7 @@ pub fn parse_page(browser: &Browser, username:&String, pageinfo:PageInfo) -> Res
     let title = tab.get_title().ok()
         .expect(format!("Error grabbing tab title from {} ({})", site_name, url).as_str());
     
-    for _item in &title_match{
+    for _item in title_match{
         if title.contains(&_item.as_str()){
             fail_switch = true;
         }

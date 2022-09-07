@@ -25,48 +25,57 @@
 
 
 instagram:
-  site_name:    = "Instagram"
-  url:          = "https://www.instagram.com/{}/"
-  bio_url:      = "https://www.instagram.com/{}/"
+  site_name:    "Instagram"
+  url:          "https://www.instagram.com/{}/"
+  bio_url:      "https://www.instagram.com/{}/"
   title_match:  
-    - = "Page not found"
-  title_trim:   = " • Instagram photos and videos"
-  xpath:        = "//div[contains(@class, '_aa_c')]"
+    - "Page not found"
+  title_trim:   " • Instagram photos and videos"
+  xpath:        "//div[contains(@class, '_aa_c')]"
 
 facebook:
-  site_name:    = "Facebook"
-  url:          = "https://www.facebook.com/{}"
-  bio_url:      = "https://www.facebook.com/{}"
+  site_name:    "Facebook"
+  url:          "https://www.facebook.com/{}"
+  bio_url:      "https://www.facebook.com/{}"
   title_match:  
-    - = "Page Not Found"
-  title_trim:   = " • Instagram photos and videos"
-  xpath:        = "/html/body/div[1]/div/div[1]/div/div[3]/div/div/div/div[1]/div[1]/div/div/div[4]/div[2]/div/div[1]/div/div[1]/div/div/div[2]"
+    - "Page Not Found"
+  title_trim:   " | Facebook"
+  xpath:        "/html/body/div[1]/div/div[1]/div/div[3]/div/div/div/div[1]/div[1]/div/div/div[4]/div[2]/div/div[1]/div/div[1]/div/div/div[2]"
 
 youtube:
-  site_name:    = "YouTube"
-  url:          = "https://www.youtube.com/user/{}/"
-  bio_url:      = "https://www.youtube.com/user/{}/about"
+  site_name:    "YouTube"
+  url:          "https://www.youtube.com/user/{}/"
+  bio_url:      "https://www.youtube.com/user/{}/about"
   title_match:  
-    - = "404 Not Found"
-  title_trim:   = " - YouTube"
-  xpath:        = "//*[@id='description-container']"
+    - "404 Not Found"
+  title_trim:   " - YouTube"
+  xpath:        "//*[@id='description-container']"
 
 deviantart:
-  site_name:    = "DeviantArt"
-  url:          = "https://www.deviantart.com/{}"
-  bio_url:      = "https://www.deviantart.com/{}"
+  site_name:    "DeviantArt"
+  url:          "https://www.deviantart.com/{}"
+  bio_url:      "https://www.deviantart.com/{}"
   title_match:  
-    - > # This is here because DeviantArt's 404 page has a colon in it.
-      "DeviantArt: 404"
-  title_trim:   = "User Profile | DeviantArt"
-  xpath:        = "/html/body/div[1]/div[2]/div/div[2]/div[3]/div/div[2]/div[2]/div[1]/section"
+    - "DeviantArt: 404"
+  title_trim:   "User Profile | DeviantArt"
+  xpath:        "/html/body/div[1]/div[2]/div/div[2]/div[3]/div/div[2]/div[2]/div[1]/section"
 
 twitter:
-  site_name:    = "Twitter"
-  url:          = "https://www.twitter.com/{}"
-  bio_url:      = "https://www.twitter.com/{}"
+  site_name:    "Twitter"
+  url:          "https://www.twitter.com/{}"
+  bio_url:      "https://www.twitter.com/{}"
   title_match:  
-    - = "Profile / Twitter"
-    - = "Page not found"
-  title_trim:   = " / Twitter"
-  xpath:        = "/html/body/div[1]/div/div/div[2]/main/div/div/div/div[1]/div/div[2]/div/div/div"
+    - "Profile / Twitter"
+    - "Page not found"
+  title_trim:   " / Twitter"
+  xpath:        "/html/body/div[1]/div/div/div[2]/main/div/div/div/div[1]/div/div[2]/div/div/div"
+
+# Does not currently grab bio properly.
+reddit:
+  site_name:    "Reddit"
+  url:          "https://www.reddit.com/user/{}"
+  bio_url:      "https://www.reddit.com/user/{}"
+  title_match:
+    - "Reddit - Dive into anything"
+  title_trim:   " - Reddit"
+  xpath:        "/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[2]/div[3]/div[2]/div/div[1]/div/div[3]"
