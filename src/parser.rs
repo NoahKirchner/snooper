@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::format;
 use std::collections::HashMap;
 use std::fs::read_to_string;
+use std::time::Duration;
 use yaml_rust::{YamlLoader};
 
 use std::error::Error;
@@ -12,16 +13,26 @@ use std::error::Error;
 pub fn load_browser() -> Result<Browser, Box<dyn Error>>{
 
     // Create a browser instance to pass to other functions.
-    let browser = Browser::default()
-        .expect("Error finding chrome executable.");
-
+    let browser;
+    
+    // Sometimes the headless chrome crate will error out here if chrome or chromium is not
+    // installed on the system. This is dumb, but I really, truly cannot be assed to implement the
+    // same testing for chromium that the underlying crate does. The error message is ugly, and a
+    // panic, but it tells you exactly what to fix so I am going to leave it.
+    match Browser::default() {
+        Err(e) => {println!("A chrome executable was not autodetected on the system, please make sure
+                       you have chrome/chromium installed. (Specific error message: {}", e); std::process::exit(1);},
+        Ok(value) => {browser = value}
+    }
     Ok(browser)
 }
 
 pub fn visit_page(browser:&Browser, url:&str) -> Result<Arc<Tab>, Box<dyn Error>>{
     let tab = browser.wait_for_initial_tab()
         .expect("Error creating new tab.");
+    tab.set_default_timeout(Duration::from_secs(60));
     tab.navigate_to(&url)?;
+    
     // This variable exists to make sure that all of the scripts on the page run before the tab
     // is passed on.
     let mut _waitfor = tab.wait_for_elements("script");
@@ -61,7 +72,6 @@ impl PageInfo {
     }
 }
 
- // @ TODO refactor this abomination
 pub fn targets_from_yaml(filename:String) -> Result<HashMap<String,PageInfo>, Box<dyn Error>>{
     // Converts yaml file to a string.
     let raw = read_to_string(&filename.as_str()).ok()
@@ -78,25 +88,16 @@ pub fn targets_from_yaml(filename:String) -> Result<HashMap<String,PageInfo>, Bo
     let mut targets:HashMap<String, PageInfo> = HashMap::new();
 
     for (k,v) in doc.iter(){
-        //println!("{:?}\n", (k, v));
         let target_name = k.as_str().unwrap().to_string();
         
         let mut title_match:Vec<String> = Vec::new();
 
-        // This is violently ugly, but it had to be done. Lord help me.
-        // For future me, this converts the vector of yaml vectors
-        // into one yaml vector, converts the types of its contents to
-        // string and appends those to a new vector.
-        // @ TODO Refactor this godforsaken nonsense
-        for title_vector in v["title_match"].as_vec(){
+        if let Some(title_vector) = v["title_match"].as_vec(){
             for title in title_vector {
                 title_match.push(title.as_str().unwrap().to_string())
             }
         }
 
-        // Matches up the pageinfo constructor arguments with the
-        // parsed yaml. This is buttfuckingly terrible.
-        // @ TODO refactor.
         let target_values = PageInfo::new(
             v["site_name"].as_str().unwrap().to_string(),
             v["url"].as_str().unwrap().to_string(),
@@ -111,8 +112,6 @@ pub fn targets_from_yaml(filename:String) -> Result<HashMap<String,PageInfo>, Bo
     Ok(targets)
 
 }
-
-
 
 
 #[derive(Debug)]
@@ -130,7 +129,6 @@ to parse the page. Perhaps try using a regex for page parsing or changing the
 logic?
 */
 pub fn parse_page(browser: &Browser, username:&String, pageinfo:&PageInfo) -> Result<WebReturn,Box<dyn Error>>{
-    let mut fail_switch:bool = false;
     
     let url = &pageinfo.url.replace("{}", username);
     let bio_url = &pageinfo.bio_url.replace("{}", username);
@@ -139,37 +137,53 @@ pub fn parse_page(browser: &Browser, username:&String, pageinfo:&PageInfo) -> Re
     let title_trim = &pageinfo.title_trim;
     let xpath = &pageinfo.xpath;
 
+    let tab;
 
-    let tab = visit_page(browser, &url).ok()
-        .expect(format!("Error connecting to {} ({}).", site_name, url).as_str());
+    match visit_page(browser, &url){
+        Ok(value) => {
+            tab = value;        
+        },
+        Err(error) => {
+            println!("Failure to connect to {} (Error: {:?} )", url, error);
+            return Ok(WebReturn::Failure(format!("Unable to connect to {}", url)))
+        }
+    };
 
-    let title = tab.get_title().ok()
-        .expect(format!("Error grabbing tab title from {} ({})", site_name, url).as_str());
-    
-    for _item in title_match{
-        if title.contains(&_item.as_str()){
-            fail_switch = true;
+    let title; 
+
+    match tab.get_title() {
+        Ok(value) => {
+            for item in title_match {
+                if value.contains(&item.as_str()){
+                    return Ok(WebReturn::Failure(format!("No {} account found.", site_name)))
+                }
+            }
+            title = value;
+        }
+        Err(error) => {
+            println!("Failure to get tab name from {} (Error: {:?})", url, error);
+            return Ok(WebReturn::Failure(format!("Unable to access {} title", url)))
         }
     }
-    if fail_switch {
-        Ok(WebReturn::Failure(format!("No {} account found.", site_name)))
-    } else {
-        let bio_page = visit_page(browser, &bio_url);
-
-        let bio = bio_page.as_ref().ok()
-            .expect("Error scraping bio of {} ({})")
-            .wait_for_xpath(xpath.as_str()).ok()
-            .expect(format!("Error unwrapping bio of {} ({})", site_name, url).as_str());
-
-        Ok(
-            WebReturn::Success {
-                username: (title.replace(title_trim.as_str(), "")),
+    
+    let bio_page = visit_page(browser, &bio_url);
+    
+    match bio_page?.wait_for_xpath(xpath.as_str())?.get_inner_text() {
+        Ok(value) => {
+            return Ok(WebReturn::Success {
+                username:(title.replace(title_trim.as_str(), "")),
                 url: (url.to_string()),
-                other: (bio.get_inner_text().ok()
-                .expect(format!("Error parsing inner bio text of {} ({})", site_name, url).as_str()))
-            }
-        )
+                other: (value)
+            })
+        }
+        Err(error) => {
+            return Ok(WebReturn::Success {
+                username:(title.replace(title_trim.as_str(), "")),
+                url: (url.to_string()),
+                other: ("Error reading page bio".to_string())
+            })
+        }
+    };
 
-    }
     
 }
